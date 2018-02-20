@@ -25,8 +25,6 @@ def _get_tai_offset_since(unix_time, leap_seconds=None):
     tai_offset = 9
     if leap_seconds is None:
         leap_seconds = LEAP_SECONDS
-    if leap_seconds is None:
-        leap_seconds = LEAP_SECONDS
     for t, new_tai_offset in leap_seconds:
         if t - 2208988800 <= unix_time:
             tai_offset = new_tai_offset
@@ -67,7 +65,7 @@ class CoordinatedMarsTime(object):
         self._ut = None
 
     @classmethod
-    def from_unix_time(cls, unix_time, leap_seconds=None):
+    def from_unix_time(cls, unix_time, leap_seconds=None, round_milliseconds=True):
         """
         Creates a MarsTime from a unix time, as seconds from the Unix Epoch.
 
@@ -89,12 +87,15 @@ class CoordinatedMarsTime(object):
         self._hours = int(mtc)
         self._minutes = int(mtc * 60) % 60
         self._seconds = int(mtc * (60 * 60)) % 60
-        self._milliseconds = mtc * (60 * 60 * 1000) % 1000
+        milli = mtc * (60 * 60 * 1000) % 1000
+        if round_milliseconds:
+            milli = int(milli)
+        self._milliseconds = milli
         return self
 
     @classmethod
-    def now(cls, leap_seconds=None):
-        return cls.from_unix_time(time.time(), leap_seconds)
+    def now(cls, leap_seconds=None, round_milliseconds=True):
+        return cls.from_unix_time(time.time(), leap_seconds, round_milliseconds)
 
     @property
     def msd(self):
@@ -191,9 +192,9 @@ class CoordinatedMarsTime(object):
 
     @milliseconds.setter
     def milliseconds(self, value):
-        milliseconds = int(value)
+        milliseconds = float(value)
         if value != milliseconds:
-            raise TypeError('milliseconds should be an integer')
+            raise TypeError('milliseconds should be a float')
         if milliseconds == self._milliseconds:
             return
         self._milliseconds = milliseconds
@@ -244,7 +245,7 @@ _MAIN_FORMAT = ('\r' + _FORMAT).format
 _FORMAT = _FORMAT.format
 
 
-def main(file=sys.stdout, interval=0.):
+def main(file=sys.stdout, interval=0.01):
     # Lookup optimisations
     now = CoordinatedMarsTime.now
     fmt = _MAIN_FORMAT
@@ -253,10 +254,11 @@ def main(file=sys.stdout, interval=0.):
     file_flush = file.flush
     try:
         file_write(_FORMAT(now()))
+        file_flush()
 
         while True:
             time_sleep(interval)
-            file_write(fmt(now()))
+            file_write(fmt(now(None, True)))
             file_flush()
     except KeyboardInterrupt:
         pass
@@ -268,19 +270,26 @@ def main(file=sys.stdout, interval=0.):
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         if len(sys.argv) > 2:
-            raise ValueError(
+            sys.exit(
                 '0 or 1 arguments should be passed in the command line. '
                 'See --help.'
             )
-        if sys.argv[1] == '--help' or sys.argv[1] == '-h':
+        elif sys.argv[1] == '--help' or sys.argv[1] == '-h':
             print(
                 'Continuously prints the time in Coordinated Mars Time (MTC). '
                 'Pass "-x" to only print once, otherwise pass an interval '
                 'to print the time in.'
             )
-        if sys.argv[1] == '-x':
+        elif sys.argv[1] == '-x':
             print(_FORMAT(CoordinatedMarsTime.now()))
         else:
-            main(interval=float(sys.argv[1]))
+            try:
+                interval = float(sys.argv[1])
+                if interval < 0:
+                    raise ValueError
+            except ValueError:
+                sys.exit('"{}" could not be interpreted as a positive number'.format(sys.argv[1]))
+            else:
+                main(interval=interval)
     else:
         main(interval=0.01)
