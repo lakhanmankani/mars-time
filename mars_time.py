@@ -6,7 +6,7 @@ import time
 import sys
 
 # From <https://www.ietf.org/timezones/data/leap-seconds.list>
-# Needs to be updated on: 28 June 2018 (3723408000)
+# Needs to be updated on: 28 December 2018 (3754944000)
 
 LEAP_SECONDS = (
     (2272060800, 10), (2287785600, 11), (2303683200, 12), (2335219200, 13),
